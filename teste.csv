@@ -1,0 +1,15 @@
+﻿Planeta;Conexoes
+Terra;Marte
+Marte;Júpiter
+Júpiter;Terra
+Mercúrio;Terra
+Vênus;Saturno
+Terra;Urano
+Urano;Netuno
+Netuno;Saturno
+Vênus;Terra
+Marte;Netuno
+Estacao_Esp1;Mercúrio
+Estacao_Esp2;Netuno
+Netuno;Estacao_Esp1
+Marte;Estacao_Esp2
