@@ -1,1 +1,1 @@
-### O arquivo correto é o N2_Teste2
+### O arquivo correto é o N2_Rota_Planetaria.py
