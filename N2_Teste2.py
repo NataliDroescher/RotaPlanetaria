@@ -47,6 +47,30 @@ distances = {
     ("Estacao_Esp3", "Netuno"): 950,
 }
 
+planet_colors = {
+    "Mercúrio": "#E1C699",
+    "Vênus": "#F9E79F",
+    "Terra": "#ADD8E6",
+    "Marte": "#FFB6C1",
+    "Júpiter": "#D2B48C",
+    "Saturno": "#FDEBD0",
+    "Urano": "#AFEEEE",
+    "Netuno": "#87CEEB",
+    "Estacao_Esp1": "#FFFFFF",
+    "Estacao_Esp2": "#FFFFFF",
+    "Estacao_Esp3": "#FFFFFF",
+}
+
+#Tamanho dos planetas
+def get_node_sizes(vertices):
+    node_sizes = []
+    for vertex in vertices:
+        if vertex in ["Mercúrio", "Vênus", "Terra", "Marte", "Júpiter", "Saturno", "Urano", "Netuno"]:
+            node_sizes.append(6000) 
+        else:
+            node_sizes.append(4000) 
+    return node_sizes
+
 # Grafo como matriz
 def initialize_adjacency_matrix(vertices):
     num_vertices = len(vertices)
@@ -132,10 +156,13 @@ def plot_graph(vertices, adj_matrix, path=None):
     num_vertices = len(vertices)
     angle = np.linspace(0, 2 * np.pi, num_vertices, endpoint=False)
     positions = {vertices[i]: (np.cos(angle[i]), np.sin(angle[i])) for i in range(num_vertices)}
+    
+    node_colors = [planet_colors.get(vertex, "#FFFFFF") for vertex in vertices]  # Cor padrão branca
+    node_sizes = get_node_sizes(vertices)
 
-    for vertex, pos in positions.items():
-        ax.plot(pos[0], pos[1], 'o', markersize=15, color='skyblue')
-        ax.text(pos[0], pos[1], vertex, fontsize=12, ha='center', color='white')
+    for idx, (vertex, pos) in enumerate(positions.items()):
+        ax.plot(pos[0], pos[1], 'o', markersize=node_sizes[idx] / 200, color=node_colors[idx])
+        ax.text(pos[0], pos[1] + 0.1, vertex, fontsize=12, ha='center', color='white')
     
     for i in range(num_vertices):
         for j in range(i + 1, num_vertices):
@@ -147,8 +174,9 @@ def plot_graph(vertices, adj_matrix, path=None):
                 
                 mid_x = (x_values[0] + x_values[1]) / 2
                 mid_y = (y_values[0] + y_values[1]) / 2
-                ax.text(mid_x, mid_y, str(int(adj_matrix[i][j])), color="yellow", fontsize=10, ha='center')
-
+                ax.text(mid_x, mid_y, str(int(adj_matrix[i][j])),  color="black", fontsize=10, ha='center',
+                    bbox=dict(facecolor='gray', alpha=0.7, edgecolor='none', boxstyle='round,pad=0.3'))
+                
     if path:
         for k in range(len(path) - 1):
             origem = path[k]
@@ -187,18 +215,52 @@ def medir_tempo(funcao, *args):
     
     return resultado
 
+def verificar_combustivel(caminhos, fuel_available):
+    caminhos_viaveis = []
+    mensagem_caminhos = []
+
+    estacoes_espaciais = {"Estacao_Esp1", "Estacao_Esp2", "Estacao_Esp3"}  # Estações espaciais para reabastecimento
+
+    for caminho, custo in caminhos:
+        combustivel_restante = fuel_available
+        estacoes_visitadas = set()
+
+        for i in range(len(caminho) - 1):
+            origem = caminho[i]
+            destino = caminho[i + 1]
+            peso = distances.get((origem, destino), distances.get((destino, origem), float('inf')))
+
+           
+            if origem in estacoes_espaciais and origem not in estacoes_visitadas:
+                combustivel_restante += 1000  
+                estacoes_visitadas.add(origem)
+           
+            combustivel_restante -= peso
+
+            if combustivel_restante < 0:
+                mensagem_caminhos.append(f"Caminho {' -> '.join(caminho)}: INVIÁVEL (Falta de combustível)")
+                break
+        else:
+            mensagem_caminhos.append(f"Caminho {' -> '.join(caminho)}: Viável (Combustível restante: {combustivel_restante})")
+            caminhos_viaveis.append((caminho, custo, combustivel_restante))  
+
+    if not caminhos_viaveis:
+        raise ValueError("Nenhum caminho viável devido à falta de combustível.")
+
+    return caminhos_viaveis, mensagem_caminhos
 
 # Busca em Largura
 def bfs(adj_matrix, vertices, origem, destino):
     origem_idx, destino_idx = vertices.index(origem), vertices.index(destino)
-    fila = deque([(origem_idx, [origem], 0)])  
+    fila = deque([(origem_idx, [origem], 0)]) 
     caminhos = []
 
     while fila:
         atual, caminho, custo = fila.popleft()
 
         if atual == destino_idx:
-            caminhos.append((caminho, custo))
+            if (caminho, custo) not in caminhos: 
+                caminhos.append((caminho, custo))
             continue
 
         for i, peso in enumerate(adj_matrix[atual]):
@@ -206,16 +268,18 @@ def bfs(adj_matrix, vertices, origem, destino):
                 fila.append((i, caminho + [vertices[i]], custo + peso))
 
     caminho_otimo = min(caminhos, key=lambda x: x[1])[0] if caminhos else None
-    return caminhos, caminho_otimo  
+    return caminhos, caminho_otimo
 
-
+# Busca em Profundidade
 def dfs(adj_matrix, vertices, origem, destino):
-    origem_idx, destino_idx = vertices.index(origem), vertices.index(destino)
+    origem_idx = vertices.index(origem)
+    destino_idx = vertices.index(destino)
     caminhos = []
 
     def dfs_visit(atual, caminho, custo):
         if atual == destino_idx:
-            caminhos.append((caminho[:], custo))
+            if (caminho, custo) not in caminhos: 
+                caminhos.append((caminho[:], custo))
             return
 
         for i, peso in enumerate(adj_matrix[atual]):
@@ -226,7 +290,6 @@ def dfs(adj_matrix, vertices, origem, destino):
 
     caminho_otimo = min(caminhos, key=lambda x: x[1])[0] if caminhos else None
     return caminhos, caminho_otimo
-
 
 def dijkstra(adj_matrix, vertices, origem, destino):
     origem_idx = vertices.index(origem)
@@ -243,17 +306,22 @@ def dijkstra(adj_matrix, vertices, origem, destino):
 
         for i in range(num_vertices):
             peso = adj_matrix[atual][i]
-            if peso < float('inf'):
+            if peso < float('inf'):  
                 nova_distancia = distancia_atual + peso
                 if nova_distancia < distancias[i]:
                     distancias[i] = nova_distancia
                     caminhos[i] = [caminho + [vertices[i]] for caminho in caminhos[atual]]
                     heapq.heappush(fila_prioridade, (nova_distancia, i))
                 elif nova_distancia == distancias[i]:
-                    caminhos[i].extend([caminho + [vertices[i]] for caminho in caminhos[atual]])
+                    novos_caminhos = [caminho + [vertices[i]] for caminho in caminhos[atual]]
+                    
+                    for novo_caminho in novos_caminhos:
+                        if novo_caminho not in caminhos[i]:
+                            caminhos[i].append(novo_caminho)
 
     caminhos_destino = [(caminho, distancias[destino_idx]) for caminho in caminhos.get(destino_idx, [])]
     caminho_otimo = min(caminhos_destino, key=lambda x: x[1])[0] if caminhos_destino else None
+
     return caminhos_destino, caminho_otimo
 
 def floyd_warshall(adj_matrix, vertices, origem, destino):
@@ -301,14 +369,13 @@ def bellman_ford(adj_matrix, vertices, origem, destino):
                 peso = adj_matrix[i][j]
                 if peso < float('inf') and distancias[i] + peso < distancias[j]:
                     distancias[j] = distancias[i] + peso
-                 
-                    if j not in caminhos:
-                        caminhos[j] = []
                     caminhos[j] = [caminho + [vertices[j]] for caminho in caminhos[i]]
                 elif peso < float('inf') and distancias[i] + peso == distancias[j]:
-                    if j not in caminhos:
-                        caminhos[j] = []
-                    caminhos[j].extend([caminho + [vertices[j]] for caminho in caminhos[i]])
+                    novos_caminhos = [caminho + [vertices[j]] for caminho in caminhos[i]]
+                    
+                    for novo_caminho in novos_caminhos:
+                        if novo_caminho not in caminhos[j]:
+                            caminhos[j].append(novo_caminho)
 
     for i in range(num_vertices):
         for j in range(num_vertices):
@@ -317,7 +384,6 @@ def bellman_ford(adj_matrix, vertices, origem, destino):
                 messagebox.showerror("Erro", "O grafo contém um ciclo de peso negativo.")
                 return [], None
 
-    # Recupera todos os caminhos para o destino e identifica o caminho ótimo
     caminhos_destino = [(caminho, distancias[destino_idx]) for caminho in caminhos.get(destino_idx, [])]
     caminho_otimo = min(caminhos_destino, key=lambda x: x[1])[0] if caminhos_destino else None
 
@@ -332,10 +398,18 @@ def show_search_path(path):
     else:
         travel_info_text.insert(tk.END, "Não há caminho entre os vértices informados.")
 
-def find_path():
+def find_path():    
+
     origem = origin_var.get()
     destino = destination_var.get()
     algorithm = algorithm_var.get()
+    month = month_var.get()
+    
+    try:
+        fuel_available = float(fuel_var.get())  # Combustível inicial
+    except ValueError:
+        messagebox.showerror("Erro", "Por favor, insira um valor válido de combustível.")
+        return
 
     caminhos = []
     caminho_otimo = None
@@ -354,19 +428,71 @@ def find_path():
         else:
             messagebox.showerror("Erro", "Algoritmo inválido")
             return
+        
+         # Aplicar as regras específicas
+        if destino == "Vênus" and month == "dezembro":
+            travel_info_text.insert(tk.END, "Viagem para Vênus cancelada devido a uma tempestade solar em dezembro.\n")
+            
+            plot_graph(vertices, adj_matrix)  # Desenha o grafo sem caminhos destacados
+            return
 
-        # Exibe todos os caminhos
-        travel_info_text.delete(1.0, tk.END)
-        if caminhos:
-            for i, (path, custo) in enumerate(caminhos, 1):
-                travel_info_text.insert(tk.END, f"Caminho {i}: {' -> '.join(path)} (Custo: {custo})\n")
-            # Destaca o caminho ótimo
-            travel_info_text.insert(tk.END, f"\nCaminho Ótimo: {' -> '.join(caminho_otimo)}\n")
-            plot_graph(vertices, adj_matrix, caminho_otimo)
-        else:
-            travel_info_text.insert(tk.END, "Não há caminho entre os vértices informados.")
+        if destino == "Saturno" and month not in ["janeiro", "março", "junho"]:
+            travel_info_text.insert(tk.END, "Atenção: Chuvas de meteoros esperadas em Saturno fora de janeiro, março e junho.\n")
+            proceed = messagebox.askyesno("Aviso", "Deseja continuar a viagem?")
+            if not proceed:
+                travel_info_text.insert(tk.END, "Viagem cancelada pelo usuário devido às condições meteorológicas.\n")
+                plot_graph(vertices, adj_matrix)
+                return
+
+        if destino == "Marte" and month in ["dezembro", "fevereiro", "agosto"]:
+            travel_info_text.insert(tk.END, "Aviso: Tempestades de areia intensas esperadas em Marte nos meses de dezembro, fevereiro e agosto.\n")
+            fuel_available -= 200  # Penalidade de combustível
+
+        if origem == "Terra" and destino == "Júpiter" and month in ["maio", "junho", "outubro"]:
+            travel_info_text.insert(tk.END, "Alinhamento planetário favorecido! Redução no consumo de combustível.\n")
+            fuel_available += 30  # Bônus de combustível
+
+        if destino == "Netuno" and month in ["janeiro", "abril"]:
+            travel_info_text.insert(tk.END, "Viagem para Netuno cancelada devido aos ventos mais rápidos do sistema solar em janeiro e abril.\n")
+            plot_graph(vertices, adj_matrix)
+            return
+
+        # Uso de slingshot
+        if "Júpiter" in caminho_otimo or "Saturno" in caminho_otimo:
+            travel_info_text.insert(tk.END, "Gravidade de Júpiter ou Saturno usada para slingshot! Combustível aumentado.\n")
+            fuel_available += 300
+
+        
+        try:
+            # Verificar os caminhos com base no combustível
+            caminhos_viaveis, mensagem_caminhos = verificar_combustivel(caminhos, fuel_available)            
+
+            # Exibe todos os caminhos no `textbox`
+            travel_info_text.delete(1.0, tk.END)
+            travel_info_text.insert(tk.END, "\n".join(mensagem_caminhos) + "\n")
+
+            # Se houver caminhos viáveis, desenhar o caminho ótimo
+            if caminhos_viaveis:
+                melhor_caminho, custo_otimo, combustivel_restante = min(caminhos_viaveis, key=lambda x: x[1])
+           
+                travel_info_text.insert(tk.END, f"\nCaminho Ótimo: {' -> '.join(melhor_caminho)}\n")
+                travel_info_text.insert(tk.END, f"Gasto Total de Combustível: {custo_otimo}\n")
+                travel_info_text.insert(tk.END, f"Combustível Restante: {combustivel_restante}\n")
+                plot_graph(vertices, adj_matrix, melhor_caminho)  # Desenhar apenas o ótimo
+            else:
+                # Se nenhum caminho viável, exibir alerta e não destacar caminhos no gráfico
+                plot_graph(vertices, adj_matrix)  # Desenha o grafo sem caminhos destacados
+                messagebox.showwarning("Atenção", "Nenhum caminho viável com o combustível disponível.")
+
+        except ValueError as e:
+            # Mostrar erro se nenhum caminho for possível
+            travel_info_text.delete(1.0, tk.END)
+            travel_info_text.insert(tk.END, str(e))
+            plot_graph(vertices, adj_matrix)  # Desenha o grafo sem caminhos destacados
+            messagebox.showerror("Erro", str(e))
     else:
         messagebox.showerror("Erro", "Por favor, selecione origem, destino e o algoritmo de busca.")
+
 
 # Interface Tkinter
 window = tk.Tk()
@@ -375,6 +501,9 @@ window.title("Planejamento de Rotas Interplanetárias")
 origin_var = tk.StringVar(window)
 destination_var = tk.StringVar(window)
 algorithm_var = tk.StringVar(window)
+fuel_var = tk.StringVar(window)
+month_var = tk.StringVar(window)
+month_var.set("janeiro")  # Valor padrão do mês
 
 frame_top_controls = tk.Frame(window)
 frame_top_controls.grid(row=0, column=0, columnspan=10, padx=10, pady=5, sticky='ew')
@@ -382,28 +511,42 @@ frame_top_controls.grid(row=0, column=0, columnspan=10, padx=10, pady=5, sticky=
 btn_upload = tk.Button(frame_top_controls, text="Carregar CSV", command=upload_csv)
 btn_upload.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
 
+fuel_label = tk.Label(frame_top_controls, text="Combustível disponível:")
+fuel_label.grid(row=0, column=1, padx=5, pady=5, sticky='w')
+
+fuel_entry = tk.Entry(frame_top_controls, textvariable=fuel_var)
+fuel_entry.grid(row=0, column=2, padx=5, pady=5, sticky='w')
+
+month_label = tk.Label(frame_top_controls, text="Mês da viagem:")
+month_label.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+
+month_menu = ttk.OptionMenu(frame_top_controls, month_var, "janeiro", 
+                            "janeiro", "fevereiro", "março", "abril", "maio", "junho",
+                            "julho", "agosto", "setembro", "outubro", "novembro", "dezembro")
+month_menu.grid(row=0, column=4, padx=5, pady=5, sticky='w')
+
 origin_label = tk.Label(frame_top_controls, text="Origem:")
-origin_label.grid(row=0, column=1, padx=5, pady=5, sticky='w')
+origin_label.grid(row=0, column=5, padx=5, pady=5, sticky='w')
 
 origin_menu = ttk.OptionMenu(frame_top_controls, origin_var, "")
-origin_menu.grid(row=0, column=2, padx=5, pady=5, sticky='w')
+origin_menu.grid(row=0, column=6, padx=5, pady=5, sticky='w')
 
 destination_label = tk.Label(frame_top_controls, text="Destino:")
-destination_label.grid(row=0, column=3, padx=5, pady=5, sticky='w')
+destination_label.grid(row=0, column=7, padx=5, pady=5, sticky='w')
 
 destination_menu = ttk.OptionMenu(frame_top_controls, destination_var, "")
-destination_menu.grid(row=0, column=4, padx=5, pady=5, sticky='w')
+destination_menu.grid(row=0, column=8, padx=5, pady=5, sticky='w')
 
 algorithm_label = tk.Label(frame_top_controls, text="Algoritmo:")
-algorithm_label.grid(row=0, column=5, padx=5, pady=5, sticky='w')
+algorithm_label.grid(row=0, column=9, padx=5, pady=5, sticky='w')
 
 algorithm_menu = ttk.OptionMenu(frame_top_controls, algorithm_var, "Busca em Largura", 
                                 "Busca em Largura", "Busca em Profundidade", 
                                 "Dijkstra", "Floyd-Warshall", "Bellman-Ford")
-algorithm_menu.grid(row=0, column=6, padx=5, pady=5, sticky='w')
+algorithm_menu.grid(row=0, column=10, padx=5, pady=5, sticky='w')
 
 btn_find_path = tk.Button(frame_top_controls, text="Encontrar Caminho", command=find_path)
-btn_find_path.grid(row=0, column=7, padx=5, pady=5, sticky='ew')
+btn_find_path.grid(row=0, column=11, padx=5, pady=5, sticky='ew')
 
 travel_info_text = tk.Text(window, height=5, width=50)
 travel_info_text.grid(row=2, column=0, columnspan=10, padx=10, pady=5, sticky='w')
